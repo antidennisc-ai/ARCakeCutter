@@ -2,107 +2,273 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AR Customizable Cake Cutter</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AR Cake Cutter</title>
     <style>
+        :root {
+            --safe-bottom: env(safe-area-inset-bottom, 20px);
+            --safe-top: env(safe-area-inset-top, 20px);
+        }
+
         body { 
-            margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-            background: #1a202c; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; 
+            margin: 0; 
+            padding: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: #000; 
+            color: white; 
+            height: 100dvh; /* Dynamic viewport height for mobile browsers */
+            width: 100vw;
+            overflow: hidden;
+            position: relative;
         }
+
+        /* Video Background Layer */
+        #video-bg { 
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            z-index: 1;
+        }
+
+        /* UI Layer Container - Sits above video */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none; /* Let touches pass through to video if needed, re-enable on buttons */
+        }
+
+        /* Header Area */
         #header { 
-            padding: 15px; text-align: center; background: #2d3748; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            padding: 15px;
+            padding-top: max(15px, var(--safe-top));
+            text-align: center;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
         }
-        h2 { margin: 0; font-size: 20px; }
+
+        h2 { 
+            margin: 0; 
+            font-size: 18px; 
+            font-weight: 600;
+            color: #fff;
+        }
+
         .settings-row {
-            display: flex; gap: 10px; align-items: center; justify-content: center; width: 100%;
+            display: flex; 
+            gap: 12px; 
+            align-items: center; 
+            justify-content: center; 
+            width: 100%;
         }
+
+        label { font-size: 14px; font-weight: 500; color: #cbd5e0; }
+
         input[type="number"] {
-            width: 60px; padding: 8px; font-size: 16px; border-radius: 6px; border: none; text-align: center; font-weight: bold;
+            width: 50px; 
+            padding: 8px; 
+            font-size: 16px; 
+            border-radius: 8px; 
+            border: 1px solid #4a5568; 
+            background: #2d3748;
+            color: white;
+            text-align: center; 
+            font-weight: bold;
         }
-        #ar-container { 
-            position: relative; flex: 1; display: flex; justify-content: center; align-items: center; overflow: hidden; background: #000; 
+
+        #btn-start-camera { 
+            background: #48bb78; 
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        video { width: 100%; height: 100%; object-fit: cover; }
+
+        /* Center Guide Area */
+        #guide-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* The SVG Overlay */
         svg { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            width: 90%; max-width: 400px; height: auto; pointer-events: none; 
+            width: 85vmin; /* Responsive to viewport min dimension */
+            height: 85vmin;
+            max-width: 500px; 
+            max-height: 500px; 
+            pointer-events: none;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
         }
-        #instructions { 
-            position: absolute; top: 20px; left: 50%; transform: translateX(-50%); 
-            background: rgba(0, 0, 0, 0.75); padding: 12px 20px; border-radius: 8px; 
-            font-weight: bold; text-align: center; width: 85%; max-width: 320px;
-            border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(4px);
+
+        /* Instructions Bubble */
+        #instructions-bubble { 
+            position: absolute; 
+            top: 20px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            background: rgba(0, 0, 0, 0.75); 
+            padding: 10px 16px; 
+            border-radius: 20px; 
+            font-size: 15px;
+            font-weight: 600; 
+            text-align: center; 
+            width: 80%; 
+            max-width: 300px;
+            border: 1px solid rgba(255,255,255,0.15); 
+            backdrop-filter: blur(4px);
+            pointer-events: auto;
         }
+
+        /* Footer Controls */
         #controls { 
-            display: flex; gap: 10px; padding: 20px; background: #2d3748; z-index: 10; justify-content: space-around; padding-bottom: max(20px, env(safe-area-inset-bottom));
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            padding-bottom: max(15px, var(--safe-bottom));
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: auto;
+            border-top: 1px solid rgba(255,255,255,0.1);
         }
+
         button { 
-            flex: 1; padding: 14px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; 
-            background: #3182ce; color: white; font-weight: bold; transition: background 0.2s;
+            flex: 1; 
+            height: 50px; /* Large touch target */
+            font-size: 16px; 
+            border-radius: 12px; 
+            border: none; 
+            cursor: pointer; 
+            font-weight: 700; 
+            transition: transform 0.1s, opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        button:active { transform: scale(0.98); }
-        button:disabled { background: #4a5568; color: #a0aec0; cursor: not-allowed; }
-        #btn-start-camera { background: #38a169; width: auto; padding: 10px 15px; }
-        #btn-reset { background: #e2e8f0; color: #2d3748; }
-        .text-shadow { text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
+
+        button:active { transform: scale(0.96); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; background: #4a5568 !important; color: #a0aec0 !important; }
+
+        #btn-prev { 
+            background: #4a5568; 
+            color: white; 
+            max-width: 80px;
+        }
+
+        #btn-next { 
+            background: #3182ce; 
+            color: white; 
+            flex: 2; /* Make this button bigger */
+            font-size: 18px;
+            box-shadow: 0 4px 12px rgba(49, 130, 206, 0.4);
+        }
+
+        #btn-reset { 
+            background: transparent; 
+            border: 2px solid #718096;
+            color: #cbd5e0; 
+            max-width: 80px;
+        }
+
+        /* High contrast text shadow for overlay elements */
+        .text-shadow { text-shadow: 0 2px 4px rgba(0,0,0,0.9); }
     </style>
 </head>
 <body>
-    <div id="header">
-        <h2>AR Cake Cutter</h2>
-        <div class="settings-row">
-            <label for="slice-input" style="font-weight: bold;">Slices:</label>
-            <input type="number" id="slice-input" value="14" min="2" max="50">
-            <button id="btn-start-camera">📷 Start Camera</button>
+    <!-- Background Video Feed -->
+    <video id="video-bg" autoplay playsinline muted></video>
+
+    <!-- UI Layer -->
+    <div id="ui-layer">
+
+        <!-- Header -->
+        <div id="header">
+            <h2>🍰 Cake Cutter AR</h2>
+            <div class="settings-row">
+                <label for="slice-input">Slices:</label>
+                <input type="number" id="slice-input" value="14" min="2" max="50" inputmode="numeric">
+                <button id="btn-start-camera">📸 Start Camera</button>
+            </div>
+        </div>
+
+        <!-- Center Visuals -->
+        <div id="guide-container">
+            <div id="instructions-bubble">Align circle & dot with cake</div>
+
+            <svg id="cake-overlay" viewBox="0 0 300 300">
+                <!-- Outer guide circle -->
+                <circle cx="150" cy="150" r="140" fill="none" stroke="rgba(255, 255, 255, 0.6)" stroke-width="2" stroke-dasharray="8 8"></circle>
+                <!-- Center Dot -->
+                <circle cx="150" cy="150" r="6" fill="#48bb78" stroke="#fff" stroke-width="2"></circle>
+
+                <!-- Clock Markers -->
+                <text x="150" y="25" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold" class="text-shadow">12</text>
+                <text x="280" y="155" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold" class="text-shadow">3</text>
+                <text x="150" y="285" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold" class="text-shadow">6</text>
+                <text x="20" y="155" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold" class="text-shadow">9</text>
+
+                <!-- Dynamic lines group -->
+                <g id="lines-group"></g>
+            </svg>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div id="controls">
+            <button id="btn-prev" disabled>Back</button>
+            <button id="btn-next">Next Cut</button>
+            <button id="btn-reset">Reset</button>
         </div>
     </div>
 
-    <div id="ar-container">
-        <video id="video-bg" autoplay playsinline></video>
-
-        <div id="instructions">Align center dot & dashed circle over your cake.</div>
-
-        <svg id="cake-overlay" viewBox="0 0 300 300">
-            <!-- Outer guide circle -->
-            <circle cx="150" cy="150" r="140" fill="none" stroke="rgba(255, 255, 255, 0.5)" stroke-width="2" stroke-dasharray="8 8"></circle>
-            <!-- Center Dot -->
-            <circle cx="150" cy="150" r="6" fill="#48bb78" stroke="#fff" stroke-width="2"></circle>
-
-            <!-- Clock -->
-            <text x="142" y="25" fill="#fff" font-size="14" font-weight="bold" class="text-shadow">12</text>
-            <text x="275" y="155" fill="#fff" font-size="14" font-weight="bold" class="text-shadow">3</text>
-            <text x="146" y="285" fill="#fff" font-size="14" font-weight="bold" class="text-shadow">6</text>
-            <text x="12" y="155" fill="#fff" font-size="14" font-weight="bold" class="text-shadow">9</text>
-
-            <!-- Dynamic lines will go here -->
-            <g id="lines-group"></g>
-        </svg>
-    </div>
-
-    <div id="controls">
-        <button id="btn-prev" disabled>Prev</button>
-        <button id="btn-next">Next Cut</button>
-        <button id="btn-reset">Reset</button>
-    </div>
-
     <script>
+        // --- Camera Logic ---
         const video = document.getElementById('video-bg');
         const btnStartCamera = document.getElementById('btn-start-camera');
 
         btnStartCamera.addEventListener('click', async () => {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' }
-                });
+                // Request rear camera explicitly
+                const constraints = { 
+                    video: { 
+                        facingMode: { ideal: "environment" },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                };
+
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
-                btnStartCamera.style.display = 'none'; // Hide button once connected
+                btnStartCamera.style.display = 'none'; // Hide button on success
             } catch (err) {
-                alert("Camera access is required. Please ensure permissions are granted. Error: " + err.message);
+                alert("Could not access camera. Please make sure you are on HTTPS and have granted permission. Error: " + err.message);
             }
         });
 
+        // --- App Logic ---
         const linesGroup = document.getElementById('lines-group');
-        const instructions = document.getElementById('instructions');
+        const instructions = document.getElementById('instructions-bubble');
         const btnNext = document.getElementById('btn-next');
         const btnPrev = document.getElementById('btn-prev');
         const btnReset = document.getElementById('btn-reset');
@@ -114,18 +280,15 @@
         let isEven = true;
 
         function generateLines() {
-            // Clear existing lines
             linesGroup.innerHTML = '';
             cuts = [];
             currentCut = 0;
 
             let slices = parseInt(sliceInput.value);
             if (isNaN(slices) || slices < 2) {
-                slices = 2;
-                sliceInput.value = 2;
+                slices = 14; // default reset
             }
 
-            // If even, cut straight across (slices / 2 cuts). If odd, cut from center to edge (slices cuts).
             isEven = (slices % 2 === 0);
             totalSteps = isEven ? (slices / 2) : slices;
 
@@ -133,12 +296,14 @@
                 const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
 
                 if (isEven) {
+                    // Cuts straight across (Diameter)
                     const angle = (i * Math.PI) / totalSteps - Math.PI / 2;
                     line.setAttribute('x1', 150 + 140 * Math.cos(angle));
                     line.setAttribute('y1', 150 + 140 * Math.sin(angle));
                     line.setAttribute('x2', 150 - 140 * Math.cos(angle));
                     line.setAttribute('y2', 150 - 140 * Math.sin(angle));
                 } else {
+                    // Cuts center to edge (Radius)
                     const angle = (i * 2 * Math.PI) / totalSteps - Math.PI / 2;
                     line.setAttribute('x1', 150);
                     line.setAttribute('y1', 150);
@@ -146,9 +311,10 @@
                     line.setAttribute('y2', 150 + 140 * Math.sin(angle));
                 }
 
-                line.setAttribute('stroke', 'rgba(255,255,255,0.4)');
+                // Default style: Hidden or Faint
+                line.setAttribute('stroke', 'rgba(255,255,255,0.3)');
                 line.setAttribute('stroke-width', '2');
-                line.setAttribute('stroke-dasharray', '5,5');
+                line.setAttribute('stroke-dasharray', '6,6');
                 line.style.display = 'none';
 
                 linesGroup.appendChild(line);
@@ -162,41 +328,60 @@
                 line.style.display = index < currentCut ? 'block' : 'none';
 
                 if (index === currentCut - 1) {
+                    // Active Cut: Bright Green, Thick, Solid
                     line.setAttribute('stroke', '#48bb78'); 
-                    line.setAttribute('stroke-width', '4');
+                    line.setAttribute('stroke-width', '5');
                     line.setAttribute('stroke-dasharray', '');
+                    line.setAttribute('stroke-linecap', 'round');
                 } else {
-                    line.setAttribute('stroke', 'rgba(255,255,255,0.7)');
+                    // Previous Cuts: Faded White, Dashed
+                    line.setAttribute('stroke', 'rgba(255,255,255,0.6)');
                     line.setAttribute('stroke-width', '2');
                     line.setAttribute('stroke-dasharray', '5,5');
                 }
             });
 
+            // Update Text
             if (currentCut === 0) {
-                instructions.innerText = "Align center dot & dashed circle over your cake.";
+                instructions.innerText = "Step 0: Align the circle & dot over your cake.";
+                btnPrev.disabled = true;
+                btnNext.disabled = false;
+                btnNext.innerText = "Start Cutting";
             } else if (currentCut > 0 && currentCut <= totalSteps) {
-                const cutType = isEven ? "across the whole cake" : "from the center to the edge";
-                instructions.innerText = `Cut ${currentCut} of ${totalSteps} (${cutType}).`;
+                const cutType = isEven ? "across" : "to center";
+                instructions.innerText = `Cut ${currentCut}/${totalSteps} (${cutType})`;
+                btnPrev.disabled = false;
+                btnNext.disabled = false;
+                btnNext.innerText = "Next Cut";
             } else {
-                instructions.innerText = `Done! You have ${sliceInput.value} perfectly equal slices.`;
+                instructions.innerText = `🎉 Done! ${sliceInput.value} equal slices.`;
+                btnPrev.disabled = false;
+                btnNext.disabled = true;
+                btnNext.innerText = "Finished";
             }
-
-            btnPrev.disabled = currentCut === 0;
-            btnNext.disabled = currentCut > totalSteps;
         }
 
-        // Listen for user changes
+        // Listeners
         sliceInput.addEventListener('change', generateLines);
-        sliceInput.addEventListener('keyup', (e) => {
-            if (e.key === 'Enter') generateLines();
+
+        btnNext.addEventListener('click', (e) => { 
+            e.stopPropagation(); // Prevent clicks falling through
+            if (currentCut <= totalSteps) { currentCut++; updateUI(); } 
         });
 
-        btnNext.addEventListener('click', () => { if (currentCut <= totalSteps) { currentCut++; updateUI(); } });
-        btnPrev.addEventListener('click', () => { if (currentCut > 0) { currentCut--; updateUI(); } });
-        btnReset.addEventListener('click', () => { currentCut = 0; updateUI(); });
+        btnPrev.addEventListener('click', (e) => { 
+            e.stopPropagation();
+            if (currentCut > 0) { currentCut--; updateUI(); } 
+        });
 
-        // Initialize with default
+        btnReset.addEventListener('click', (e) => { 
+            e.stopPropagation();
+            currentCut = 0; updateUI(); 
+        });
+
+        // Init
         generateLines();
     </script>
 </body>
 </html>
+
