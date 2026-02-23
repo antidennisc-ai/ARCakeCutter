@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AR Customizable Cake Cutter</title>
+    <style>
+        body { 
+            margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: #1a202c; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; 
+        }
+        #header { 
+            padding: 15px; text-align: center; background: #2d3748; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        h2 { margin: 0; font-size: 20px; }
+        .settings-row {
+            display: flex; gap: 10px; align-items: center; justify-content: center; width: 100%;
+        }
+        input[type="number"] {
+            width: 60px; padding: 8px; font-size: 16px; border-radius: 6px; border: none; text-align: center; font-weight: bold;
+        }
+        #ar-container { 
+            position: relative; flex: 1; display: flex; justify-content: center; align-items: center; overflow: hidden; background: #000; 
+        }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        svg { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 90%; max-width: 400px; height: auto; pointer-events: none; 
+        }
+        #instructions { 
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%); 
+            background: rgba(0, 0, 0, 0.75); padding: 12px 20px; border-radius: 8px; 
+            font-weight: bold; text-align: center; width: 85%; max-width: 320px;
+            border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(4px);
+        }
+        #controls { 
+            display: flex; gap: 10px; padding: 20px; background: #2d3748; z-index: 10; justify-content: space-around; padding-bottom: max(20px, env(safe-area-inset-bottom));
+        }
+        button { 
+            flex: 1; padding: 14px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; 
+            background: #3182ce; color: white; font-weight: bold; transition: background 0.2s;
+        }
+        button:active { transform: scale(0.98); }
+        button:disabled { background: #4a5568; color: #a0aec0; cursor: not-allowed; }
+        #btn-start-camera { background: #38a169; width: auto; padding: 10px 15px; }
+        #btn-reset { background: #e2e8f0; color: #2d3748; }
+        .text-shadow { text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h2>AR Cake Cutter</h2>
+        <div class="settings-row">
+            <label for="slice-input" style="font-weight: bold;">Slices:</label>
+            <input type="number" id="slice-input" value="14" min="2" max="50">
+            <button id="btn-start-camera">📷 Start Camera</button>
+        </div>
+    </div>
+
+    <div id="ar-container">
+        <video id="video-bg" autoplay playsinline></video>
+
+        <div id="instructions">Align center dot & dashed circle over your cake.</div>
+
+        <svg id="cake-overlay" viewBox="0 0 300 300">
+            <!-- Outer guide circle -->
+            <circle cx="150" cy="150" r="140" fill="none" stroke="rgba(255, 255, 255, 0.5)" stroke-width="2" stroke-dasharray="8 8"></circle>
+            <!-- Center Dot -->
+            <circle cx="150" cy="150" r="6" fill="#48bb78" stroke="#fff" stroke-width="2"></circle>
+
+            <!-- Clock -->
+            <text x="142" y="25" fill="#fff" font-size="14" font-weight="bold" class="text-shadow">12</text>
+            <text x="275" y="155" fill="#fff" font-size="14" font-weight="bold" class="text-shadow">3</text>
+            <text x="146" y="285" fill="#fff" font-size="14" font-weight="bold" class="text-shadow">6</text>
+            <text x="12" y="155" fill="#fff" font-size="14" font-weight="bold" class="text-shadow">9</text>
+
+            <!-- Dynamic lines will go here -->
+            <g id="lines-group"></g>
+        </svg>
+    </div>
+
+    <div id="controls">
+        <button id="btn-prev" disabled>Prev</button>
+        <button id="btn-next">Next Cut</button>
+        <button id="btn-reset">Reset</button>
+    </div>
+
+    <script>
+        const video = document.getElementById('video-bg');
+        const btnStartCamera = document.getElementById('btn-start-camera');
+
+        btnStartCamera.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' }
+                });
+                video.srcObject = stream;
+                btnStartCamera.style.display = 'none'; // Hide button once connected
+            } catch (err) {
+                alert("Camera access is required. Please ensure permissions are granted. Error: " + err.message);
+            }
+        });
+
+        const linesGroup = document.getElementById('lines-group');
+        const instructions = document.getElementById('instructions');
+        const btnNext = document.getElementById('btn-next');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnReset = document.getElementById('btn-reset');
+        const sliceInput = document.getElementById('slice-input');
+
+        let totalSteps = 7; 
+        let currentCut = 0;
+        let cuts = [];
+        let isEven = true;
+
+        function generateLines() {
+            // Clear existing lines
+            linesGroup.innerHTML = '';
+            cuts = [];
+            currentCut = 0;
+
+            let slices = parseInt(sliceInput.value);
+            if (isNaN(slices) || slices < 2) {
+                slices = 2;
+                sliceInput.value = 2;
+            }
+
+            // If even, cut straight across (slices / 2 cuts). If odd, cut from center to edge (slices cuts).
+            isEven = (slices % 2 === 0);
+            totalSteps = isEven ? (slices / 2) : slices;
+
+            for(let i = 0; i < totalSteps; i++) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+
+                if (isEven) {
+                    const angle = (i * Math.PI) / totalSteps - Math.PI / 2;
+                    line.setAttribute('x1', 150 + 140 * Math.cos(angle));
+                    line.setAttribute('y1', 150 + 140 * Math.sin(angle));
+                    line.setAttribute('x2', 150 - 140 * Math.cos(angle));
+                    line.setAttribute('y2', 150 - 140 * Math.sin(angle));
+                } else {
+                    const angle = (i * 2 * Math.PI) / totalSteps - Math.PI / 2;
+                    line.setAttribute('x1', 150);
+                    line.setAttribute('y1', 150);
+                    line.setAttribute('x2', 150 + 140 * Math.cos(angle));
+                    line.setAttribute('y2', 150 + 140 * Math.sin(angle));
+                }
+
+                line.setAttribute('stroke', 'rgba(255,255,255,0.4)');
+                line.setAttribute('stroke-width', '2');
+                line.setAttribute('stroke-dasharray', '5,5');
+                line.style.display = 'none';
+
+                linesGroup.appendChild(line);
+                cuts.push(line);
+            }
+            updateUI();
+        }
+
+        function updateUI() {
+            cuts.forEach((line, index) => {
+                line.style.display = index < currentCut ? 'block' : 'none';
+
+                if (index === currentCut - 1) {
+                    line.setAttribute('stroke', '#48bb78'); 
+                    line.setAttribute('stroke-width', '4');
+                    line.setAttribute('stroke-dasharray', '');
+                } else {
+                    line.setAttribute('stroke', 'rgba(255,255,255,0.7)');
+                    line.setAttribute('stroke-width', '2');
+                    line.setAttribute('stroke-dasharray', '5,5');
+                }
+            });
+
+            if (currentCut === 0) {
+                instructions.innerText = "Align center dot & dashed circle over your cake.";
+            } else if (currentCut > 0 && currentCut <= totalSteps) {
+                const cutType = isEven ? "across the whole cake" : "from the center to the edge";
+                instructions.innerText = `Cut ${currentCut} of ${totalSteps} (${cutType}).`;
+            } else {
+                instructions.innerText = `Done! You have ${sliceInput.value} perfectly equal slices.`;
+            }
+
+            btnPrev.disabled = currentCut === 0;
+            btnNext.disabled = currentCut > totalSteps;
+        }
+
+        // Listen for user changes
+        sliceInput.addEventListener('change', generateLines);
+        sliceInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') generateLines();
+        });
+
+        btnNext.addEventListener('click', () => { if (currentCut <= totalSteps) { currentCut++; updateUI(); } });
+        btnPrev.addEventListener('click', () => { if (currentCut > 0) { currentCut--; updateUI(); } });
+        btnReset.addEventListener('click', () => { currentCut = 0; updateUI(); });
+
+        // Initialize with default
+        generateLines();
+    </script>
+</body>
+</html>
